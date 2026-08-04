@@ -21,34 +21,68 @@
 			# Then run md5sum command with diff to detect modified files, and copy them
 	#Path to backup
 	
-	# Summary of method:
-	# Get paths of all files in local and server folders
+	# Create a function that:
+	# [D] Get paths of all files in local and server folders
+	#  If $# = 2, include exclusions by sed -i '/excludedDirs/d' /path/to/new.txt && sed -i '/excludedDirs/d' /path/to/original.txt
 	# Compare them via pathname and md5sum for present and modified files
+	# Write different files into difference.txt
+	# dry run with with --files-from=difference.txt
 	# Write deleted files deleted.txt for future
 	# Add all modified/created files into the directory, and if necessary, deleted.txt aswell
 
 # Maintain logs (?)
 	# Every execution should produce a log
 
-
-sourceDir="/home/bari/Documents/Linux"
-AbsExcludeDir="/home/bari/Documents/Linux/Resources/ISOs"
-excludeDir="$(echo "$AbsExcludeDir" | sed "s|^$sourceDir||" | sed 's/^.//')"
-	# rsync only accepts relative paths (to source)
+# Directory manipulation
+sourceDir="/home/bari/Documents/Linux/bash/purposeful/testDirectoryBU"
+AbsExcludeDir="/home/bari/Documents/Linux/bash/purposeful/testDirectoryBU/excludedDir/"
+excludeDir="$(echo "$AbsExcludeDir" | sed "s|^$sourceDir||" | sed 's/^.//')" # rsync only accepts relative paths (to source)
 user="$(echo "$(whoami)")"
-
 backUpFolder="$(realpath $sourceDir | sed "s|^/home/$(whoami)/||")"
 backUpName=$(echo $backUpFolder | sed 's|/|.|g')
 DATE=$(date '+%Y-%m-%d')
-
+parentDestDir="backUps/$user/$backUpName"
+export parentDestDir="backUps/$user/$backUpName"
 destDir="backUps/$user/$backUpName/$DATE"
+
+echo
+echo "sourceDir:	$sourceDir"
+echo "AbsExcludeDir:	$AbsExcludeDir"
+echo "excludeDir:	$excludeDir"
+echo "user:		$user"
+echo "backUpFolder:	$backUpFolder"
+echo "backUpName:	$backUpName"
+echo "DATE:		$DATE"
+echo "parentDestDir:	$parentDestDir"
+echo "destDir:	$destDir"
+echo "BACKUPDIR 	/home/bari/$parentDestDir/"
+echo
+# Establishing SSH connection & Gathering files
+> original.txt
+> new.txt
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/ansible_key
+# find $(readlink -f $sourceDir) -fprint "/home/bari/Documents/BackUpScript/original.txt" # Working
+# Current Local Directory
+for hostFile in $(find $sourceDir -type f); do
+	md5sum $hostFile
+done >> /home/bari/Documents/BackUpScript/original.txt
+
+# Backup Folders
+ssh bari@192.168.1.23 '	
+for servFile in $(find /home/bari/"'$parentDestDir'"/ -type f); do
+	md5sum $servFile;
+done' >> /home/bari/Documents/BackUpScript/new.txt
+
+# Reformatting directories from server > host before comparison
+echo "$(cat /home/bari/Documents/BackUpScript/new.txt | sed "s|/home/bari/${destDir}||g")" > /home/bari/Documents/BackUpScript/new.txt
 
 # Locally run to reduce #SSH conns
 if [ $# -eq 1 ]; then
 	rsync -av --dry-run --rsync-path="mkdir -p /tmp/$destDir/ && rsync" $sourceDir /tmp/$destDir/
 elif [ $# -eq 2 ]; then
 	echo "$excludeDir" > excludeList.txt
-	rsync -av --exclude-from='excludeList.txt' --dry-run --rsync-path="mkdir -p /tmp/$destDir/ && rsync"  $sourceDir /tmp/$destDir/
+	rsync -av --exclude-from='excludeList.txt' --dry-run --rsync-path="mkdir -p /tmp/$destDir/ && rsync"  $sourceDir /tmp/$destDir/	
 fi
 
 echo "Above is dry-run locally, do you wish to implement changes on server? y/N"

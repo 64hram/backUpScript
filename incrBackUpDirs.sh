@@ -1,41 +1,10 @@
 #!/bin/bash
 
 # Incremental backup script
-	# Method: (No need for iterations, first run will see there's no backups, so it will copy everything)
-	# find $(readlink -f /path/to/original/) -fprint "original.txt" | sed -i '/original.txt/d' /path/to/original/original.txt
-	# ssh find -type f $(readlink -f /home/bari/backUps/$user/$backUpName/) -fprint "new.txt" | sed -i '/new.txt/d' /home/bari/backUps/$user/$backUpName/new.txt
-	# ^ via SSH ^
-	# Note, you can probs just take STDOUT locally and write it to file
-	# diff original.txt new.txt
-		# Top section shows what's been removed ("<")
-		# Bottom what's been added (">")
-	# Encountered problem - diff only sees newly created files, comparing all files for differences may take long too...
-		# We could either compare all files by size (Not always sees modded files or renamed)
-		# Or by checksum $ md5sum
-		# But what if we delete a file?, how will we merge the backups?
-		# Create a deleted.txt file
-		# First cron run will not have any removed files when running diff command
-		# From then on if any file has been removed/renamed it will be written in deleted.txt
-			# md5sum will not detect renamed files, gives same md5sum value
-			# Run diff command with only paths, to detect newly created files, and deleted files and sort them accordingly 
-			# Then run md5sum command with diff to detect modified files, and copy them
-	#Path to backup
-	
-	# Create a function that:
-	# [D] Get paths of all files in local and server folders
-	#  If $# = 2, include exclusions by sed -i '/excludedDirs/d' /path/to/new.txt && sed -i '/excludedDirs/d' /path/to/original.txt
-	# Compare them via pathname and md5sum for present and modified files
-	# Write different files into difference.txt
-	# dry run with with --files-from=difference.txt
-	# Write deleted files deleted.txt for future
-	# Add all modified/created files into the directory, and if necessary, deleted.txt aswell
-
-# Maintain logs (?)
-	# Every execution should produce a log
 
 # Directory manipulation
-sourceDir="/home/bari/Documents/Linux/bash/purposeful/testDirectoryBU"
-AbsExcludeDir="/home/bari/Documents/Linux/bash/purposeful/testDirectoryBU/excludedDir/"
+sourceDir="$1"
+AbsExcludeDir="$2"
 excludeDir="$(echo "$AbsExcludeDir" | sed "s|^$sourceDir||" | sed 's/^.//')" # rsync only accepts relative paths (to source)
 user="$(echo "$(whoami)")"
 backUpFolder="$(realpath $sourceDir | sed "s|^/home/$(whoami)/||")"
@@ -45,24 +14,26 @@ parentDestDir="backUps/$user/$backUpName"
 export parentDestDir="backUps/$user/$backUpName"
 destDir="backUps/$user/$backUpName/$DATE"
 
-echo
-echo "sourceDir:	$sourceDir"
-echo "AbsExcludeDir:	$AbsExcludeDir"
-echo "excludeDir:	$excludeDir"
-echo "user:		$user"
-echo "backUpFolder:	$backUpFolder"
-echo "backUpName:	$backUpName"
-echo "DATE:		$DATE"
-echo "parentDestDir:	$parentDestDir"
-echo "destDir:	$destDir"
-echo "BACKUPDIR 	/home/bari/$parentDestDir/"
-echo
+# Directories for testing
+# echo
+# echo "sourceDir:	$sourceDir"
+# echo "AbsExcludeDir:	$AbsExcludeDir"
+# echo "excludeDir:	$excludeDir"
+# echo "user:		$user"
+# echo "backUpFolder:	$backUpFolder"
+# echo "backUpName:	$backUpName"
+# echo "DATE:		$DATE"
+# echo "parentDestDir:	$parentDestDir"
+# echo "destDir:	$destDir"
+# echo "BACKUPDIR 	/home/bari/$parentDestDir/"
+# echo
+
 # Establishing SSH connection & Gathering files
 > original.txt
 > new.txt
 eval "$(ssh-agent -s)"
 ssh-add ~/.ssh/ansible_key
-# find $(readlink -f $sourceDir) -fprint "/home/bari/Documents/BackUpScript/original.txt" # Working
+
 # Current Local Directory
 for hostFile in $(find $sourceDir -type f); do
 	md5sum $hostFile
@@ -75,32 +46,45 @@ for servFile in $(find /home/bari/"'$parentDestDir'"/ -type f); do
 done' >> /home/bari/Documents/BackUpScript/new.txt
 
 # Reformatting directories from server > host before comparison
-echo "$(cat /home/bari/Documents/BackUpScript/new.txt | sed "s|/home/bari/${destDir}||g")" > /home/bari/Documents/BackUpScript/new.txt
+echo "$(cat /home/bari/Documents/BackUpScript/new.txt | sed "s|/home/bari/${parentDestDir}/||g" | sed -E 's/([0-9]{4})-([0-9]{2})-([0-9]{2})//g')" > /home/bari/Documents/BackUpScript/new.txt
+sed -i '/deleted.txt/d' /home/bari/Documents/BackUpScript/new.txt
 
-# Locally run to reduce #SSH conns
+# File Comparison
 if [ $# -eq 1 ]; then
-	rsync -av --dry-run --rsync-path="mkdir -p /tmp/$destDir/ && rsync" $sourceDir /tmp/$destDir/
+	echo "$(diff <(sort /home/bari/Documents/BackUpScript/new.txt) <(sort /home/bari/Documents/BackUpScript/original.txt) | grep "> " | awk '{print $3}')" > /home/bari/Documents/BackUpScript/added.txt
+	echo "$(diff <(sort /home/bari/Documents/BackUpScript/new.txt) <(sort /home/bari/Documents/BackUpScript/original.txt) | grep "< " | awk '{print $3}')" > /home/bari/Documents/BackUpScript/deleted.txt
 elif [ $# -eq 2 ]; then
-	echo "$excludeDir" > excludeList.txt
-	rsync -av --exclude-from='excludeList.txt' --dry-run --rsync-path="mkdir -p /tmp/$destDir/ && rsync"  $sourceDir /tmp/$destDir/	
+	echo "$(diff <(sort /home/bari/Documents/BackUpScript/new.txt) <(sort /home/bari/Documents/BackUpScript/original.txt) | grep "> " | awk '{print $3}')" > /home/bari/Documents/BackUpScript/added.txt
+	echo "$(diff <(sort /home/bari/Documents/BackUpScript/new.txt) <(sort /home/bari/Documents/BackUpScript/original.txt) | grep "< " | awk '{print $3}')" > /home/bari/Documents/BackUpScript/deleted.txt 
+	sed -i "\|${AbsExcludeDir}|d" /home/bari/Documents/BackUpScript/added.txt
+	sed -i "\|${AbsExcludeDir}|d" /home/bari/Documents/BackUpScript/deleted.txt
 fi
+
+# Local dry-run for testing & user confirmation
+rsync -av --files-from='/home/bari/Documents/BackUpScript/added.txt' --dry-run --rsync-path="mkdir -p /tmp/$destDir/ && rsync" / /tmp/$destDir/
 
 echo "Above is dry-run locally, do you wish to implement changes on server? y/N"
 read input
 
-if [[ $# -eq 1 && "$input" = "y" ]]; then
-	rsync -av --rsync-path="mkdir -p /home/bari/$destDir/ && rsync" $sourceDir bari@192.168.1.23:/home/bari/$destDir/
-
-elif [[ $# -eq 2 && "$input" = "y" ]]; then
-	rsync -av --rsync-path="mkdir -p /home/bari/$destDir/ && rsync" --exclude '$excludeDir' $sourceDir bari@192.168.1.23:/home/bari/$destDir/
+# Actual run
+if [[ "$input" = "y" ]]; then
+	mkdir -p /home/bari/Documents/BackUpScript/logs/$backUpName/
+	echo "$(rsync -av --files-from='/home/bari/Documents/BackUpScript/added.txt' --rsync-path="mkdir -p /home/bari/$destDir/ && rsync" / bari@192.168.1.23:/home/bari/$destDir/)" > /home/bari/Documents/BackUpScript/logs/$backUpName/$DATE.txt
+	sed -i '\|/$|d' /home/bari/Documents/BackUpScript/logs/$backUpName/$DATE.txt
+	echo "List of changes can be found in log file"
 else
 	echo "Operation cancelled, exiting..."
 	exit
 fi
 
-
 ###################################
-##### Checklist ####
-## Locally ##
-# Corrent destination name
-# Correct exclusion and
+##### ToDo ####
+# Clean script for ease of use
+# Add a README
+
+# Further improvements
+# chooseDirsBackup.sh to accept a list of excluded directories
+# Replace all file paths for original, new, added, and deleted.txt and log text files for ease of use
+# Transfer deleted.txt alongside /home/bari/$destDir/ - for future use when merging backups
+# Allow for multiple cron jobs under a user (Could cause overloads)
+# Reduce workload by using a mix of both size and md5sum for file comparison

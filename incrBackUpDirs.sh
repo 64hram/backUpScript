@@ -69,7 +69,7 @@ read input
 # Actual run
 if [[ "$input" = "y" ]]; then
 	mkdir -p /path/to/log/folder/$backUpName/
-	echo "$(rsync -av --files-from='/path/to/addedFiles.txt' --rsync-path="mkdir -p /path/to/server/backup/folder/$destDir/ && rsync" / user@IP:/path/to/server/backup/folder/$destDir/)" > /path/to/log/folder/$backUpName/$DATE.txt
+	echo "$(rsync -av --files-from='/path/to/addedFiles.txt' --rsync-path="mkdir -p /path/to/server/backup/folder/$destDir/ && rsync" / user@IP:/path/to/server/backup/folder/$destDir/ && rsync -av /path/to/deletedFiles.txt user@IP:/path/to/server/backup/folder/$destDir/)" > /path/to/log/folder/$backUpName/$DATE.txt
 	sed -i '\|/$|d' /path/to/log/folder/$backUpName/$DATE.txt
 	echo "List of changes can be found in log file"
 else

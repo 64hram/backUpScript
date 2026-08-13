@@ -8,14 +8,16 @@
 			# Syntax for this
 			# https://unix.stackexchange.com/a/6454
 
+user="$(echo "$(whoami)")"
+
 function cronInput() {
 	# Takes the directories and inputs them into the the crontable
-	echo "# 0 13 * * *  /home/bari/Documents/Linux/bash/purposeful/incrBackupDirs $backUpDir $excludeDir" >> /var/spool/cron/bari
+	echo "0 13 * * *  path/to/backup/script/incrBackupDirs.sh $backUpDir $excludeDir" >> /var/spool/cron/$user
 }
 
 function checkCron(){
 	# Removes all instances of the crontab -l | grep "incrBackupDirs"
-	sed -i '/incrBackupDirs/d' /var/spool/cron/bari
+	sed -i '/incrBackupDirs/d' /var/spool/cron/$users
 }
 
 echo

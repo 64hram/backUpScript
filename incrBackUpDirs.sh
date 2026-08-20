@@ -59,20 +59,26 @@ elif [ $# -eq 2 ]; then
 	sed -i "\|${AbsExcludeDir}|d" /path/to/addedFiles.txt
 	sed -i "\|${AbsExcludeDir}|d" /path/to/deletedFiles.txt
 fi
-
+####### Uncomment to manually create backups (No cronjob) ##########
 # Local dry-run for testing & user confirmation
-rsync -av --files-from='/path/to/addedFiles.txt' --dry-run --rsync-path="mkdir -p /tmp/$destDir/ && rsync" / /tmp/$destDir/
-
-echo "Above is dry-run locally, do you wish to implement changes on server? y/N"
-read input
+# rsync -av --files-from='/path/to/addedFiles.txt' --dry-run --rsync-path="mkdir -p /tmp/$destDir/ && rsync" / /tmp/$destDir/
+# echo "Above is dry-run locally, do you wish to implement changes on server? y/N"
+# read input
 
 # Actual run
-if [[ "$input" = "y" ]]; then
-	mkdir -p /path/to/log/folder/$backUpName/
-	echo "$(rsync -av --files-from='/path/to/addedFiles.txt' --rsync-path="mkdir -p /path/to/server/backup/folder/$destDir/ && rsync" / user@IP:/path/to/server/backup/folder/$destDir/ && rsync -av /path/to/deletedFiles.txt user@IP:/path/to/server/backup/folder/$destDir/)" > /path/to/log/folder/$backUpName/$DATE.txt
-	sed -i '\|/$|d' /path/to/log/folder/$backUpName/$DATE.txt
-	echo "List of changes can be found in log file"
-else
-	echo "Operation cancelled, exiting..."
-	exit
-fi
+# if [[ "$input" = "y" ]]; then
+#	mkdir -p /path/to/log/folder/$backUpName/
+#	echo "$(rsync -av --files-from='/path/to/addedFiles.txt' --rsync-path="mkdir -p /path/to/server/backup/folder/$destDir/ && rsync" / user@IP:/path/to/server/backup/folder/$destDir/ && rsync -av /path/to/deletedFiles.txt user@IP:/path/to/server/backup/folder/$destDir/)" > /path/to/log/folder/$backUpName/$DATE.txt
+#	sed -i '\|/$|d' /path/to/log/folder/$backUpName/$DATE.txt
+#	echo "List of changes can be found in log file"
+#else
+#	echo "Operation cancelled, exiting..."
+#	exit
+#fi
+######################################
+
+### Run
+mkdir -p /path/to/log/folder/$backUpName/
+echo "$(rsync -av --files-from='/path/to/addedFiles.txt' --rsync-path="mkdir -p /path/to/server/backup/folder/$destDir/ && rsync" / user@IP:/path/to/server/backup/folder/$destDir/ && rsync -av /path/to/deletedFiles.txt user@IP:/path/to/server/backup/folder/$destDir/)" > /path/to/log/folder/$backUpName/$DATE.txt
+sed -i '\|/$|d' /path/to/log/folder/$backUpName/$DATE.txt
+echo "List of changes can be found in log file"
